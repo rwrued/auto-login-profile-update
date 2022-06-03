@@ -1,0 +1,74 @@
+# You can override the included template(s) by including variable overrides
+# SAST customization: https://docs.gitlab.com/ee/user/application_security/sast/#customizing-the-sast-settings
+# Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/#customizing-settings
+# Dependency Scanning customization: https://docs.gitlab.com/ee/user/application_security/dependency_scanning/#customizing-the-dependency-scanning-settings
+# Note that environment variables can be set in several places
+# See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
+image: python:3.10
+
+stages:
+  - lint
+  - security
+  - test
+  - build
+  - release
+
+cache:
+  key:
+    files:
+      - poetry.lock
+      - .gitlab-ci.yml
+  paths:
+    - .venv
+    - .cache/pip
+
+.with_python_dependencies:
+  before_script:
+    - pip install poetry
+    - poetry --version
+    # Force Python dependencies to be installed in a .venv folder in the current
+    # directory; this simplifies caching.
+    - poetry config virtualenvs.in-project true
+    - poetry install -vv
+
+sast:
+  stage: security
+include:
+- template: Security/SAST.gitlab-ci.yml
+
+lint:
+  extends: .with_python_dependencies
+  stage: lint
+  script:
+    - poetry run ./meta/lint-python.sh
+
+secure:
+  extends: .with_python_dependencies
+  stage: security
+  script:
+    - poetry run ./meta/secure-python.sh
+
+
+build_pyz:
+  extends: .with_python_dependencies
+  stage: build
+  script:
+    - poetry run ./meta/build.sh
+    - ./build/zoe_framework.pyz --version
+    - ./build/zoe_framework.pyz --help
+  artifacts:
+    paths:
+      - build/zoe_framework.pyz
+
+release_pyz:
+  stage: release
+  script: |-
+    # This relies on wget already being installed in the Docker image being used. If it
+    # isn't, you must add a step to install wget.
+    wget --no-check-certificate --header "JOB-TOKEN: ${CI_JOB_TOKEN}" ${LATEST_RELEASE_TOOLS_URL}
+    chmod +x ./release-tools.pyz
+
+    cp ./build/zoe_framework.pyz ./build/zoe_framework-${CI_COMMIT_TAG}.pyz
+    ./release-tools.pyz publish --mode ci ./build/zoe_framework-${CI_COMMIT_TAG}.pyz
+  only:
+    - tags

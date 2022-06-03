@@ -1,0 +1,36 @@
+repos:
+  - repo: local
+    hooks:
+      - id: lint_python
+        name: Run meta/lint-python.sh, which verifies Python code quality and type checking.
+        entry: bash meta/lint-python.sh
+        stages: [ commit ]
+        types: [ python ]
+        language: system
+        # The below line makes pre-commit run our lint script once per commit, rather
+        # than once for each file within the commit.
+        pass_filenames: false
+  - repo: local
+    hooks:
+      - id: security_python
+        name: Run meta/secure-python.sh, which attempts to find any security issues with Python code.
+        entry: bash meta/secure-python.sh
+        stages: [ commit ]
+        types: [ python ]
+        language: system
+        # The below line makes pre-commit run our lint script once per commit, rather
+        # than once for each file within the commit.
+        pass_filenames: false
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+    -  id: check-executables-have-shebangs
+    -  id: check-shebang-scripts-are-executable
+    -  id: check-json
+    -  id: check-toml
+    -  id: check-yaml
+    -  id: detect-aws-credentials
+       args: [--allow-missing-credentials]
+    -  id: detect-private-key
+    -  id: end-of-file-fixer
+    -  id: trailing-whitespace
